@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');  // Importar el middleware de CORS
 const app = express();
 const bodyParser = require('body-parser');
 const database = {};  // Simulación de base de datos en memoria
@@ -7,6 +8,9 @@ const database = {};  // Simulación de base de datos en memoria
 const simetricoService = require('./services/Simetrico_model');
 const hashService = require('./services/hash_model');
 const asimetricoService = require('./services/Asimetrico_model');
+
+// Habilitar CORS para todas las rutas
+app.use(cors());
 
 // Configuración para manejar JSON y formularios
 app.use(bodyParser.json());
