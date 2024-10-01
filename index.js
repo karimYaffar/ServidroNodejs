@@ -15,8 +15,9 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // Ruta principal para recibir los datos y decidir el tipo de cifrado
 app.post('/procesar', (req, res) => {
-  const { usuario, correo, password, numero, direccion, userKey, option, userId } = req.body;
+  const { usuario,password , correo, numero , direccion, option,userKey  } = req.body;
 
+  const userId = userKey
   let resultado;
 
   switch (option) {
@@ -89,8 +90,5 @@ app.post('/procesar', (req, res) => {
   }
 });
 
-// Servidor escuchando en el puerto 3000
-const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
-});
+module.exports = app;
+
