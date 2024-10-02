@@ -2,11 +2,10 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const cors = require('cors'); // Agregar CORS
-const { SigningKey, VerifyingKey } = require('ecdsa');
 const CryptoJS = require('crypto-js');
 
 const elliptic = require('elliptic');
-const EC = new elliptic.ec('secp256k1');
+const EC = new elliptic.ec('secp256k1'); // Correcto: Usar elliptic en lugar de ecdsa
 
 const app = express();
 
