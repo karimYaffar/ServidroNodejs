@@ -125,6 +125,42 @@ app.post('/api/encrypt-data', (req, res) => {
             phone: encrypt3DES(phone, clientPublicKey),
             address: encrypt3DES(address, clientPublicKey)
         };
+    } else if (encryption === 'hash224') {
+        // Hashear cada campo con SHA-224
+        encryptedData = {
+            username: hashSHA224(username),
+            email: hashSHA224(email),
+            password: hashSHA224(password),
+            phone: hashSHA224(phone),
+            address: hashSHA224(address)
+        };
+    } else if (encryption === 'hash256') {
+        // Hashear cada campo con SHA-256
+        encryptedData = {
+            username: hashSHA256(username),
+            email: hashSHA256(email),
+            password: hashSHA256(password),
+            phone: hashSHA256(phone),
+            address: hashSHA256(address)
+        };
+    } else if (encryption === 'hash384') {
+        // Hashear cada campo con SHA-384
+        encryptedData = {
+            username: hashSHA384(username),
+            email: hashSHA384(email),
+            password: hashSHA384(password),
+            phone: hashSHA384(phone),
+            address: hashSHA384(address)
+        };
+    } else if (encryption === 'hash512') {
+        // Hashear cada campo con SHA-512
+        encryptedData = {
+            username: hashSHA512(username),
+            email: hashSHA512(email),
+            password: hashSHA512(password),
+            phone: hashSHA512(phone),
+            address: hashSHA512(address)
+        };
     } else {
         return res.status(400).send('Método de cifrado no soportado.');
     }
@@ -174,34 +210,6 @@ app.post('/api/decrypt-data', (req, res) => {
     });
 });
 
-// --- Endpoint para realizar hash ---
-app.post('/api/hash-data', (req, res) => {
-    const { text, algorithm } = req.body;
-
-    let hash;
-    switch (algorithm) {
-        case 'sha224':
-            hash = hashSHA224(text);
-            break;
-        case 'sha256':
-            hash = hashSHA256(text);
-            break;
-        case 'sha384':
-            hash = hashSHA384(text);
-            break;
-        case 'sha512':
-            hash = hashSHA512(text);
-            break;
-        default:
-            return res.status(400).send('Algoritmo de hash no soportado.');
-    }
-
-    res.send({ algorithm, hash });
-});
-
 // Puerto de la aplicación
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(Servidor corriendo en el puerto ${PORT});
-});
-
+app.listen(PORT, () => {});
