@@ -99,13 +99,13 @@ const eccInstance = new ECC();
 // --- Endpoint para cifrar los datos ---
 app.post('/api/encrypt-data', (req, res) => {
     const { username, password, email, phone, address, clientPublicKey, encryption } = req.body;
-
+    console.log(username, password, email, phone, address, clientPublicKey, encryption );
     let encryptedData;
 
     if (encryption === 'asimetric') {
         // Derivar secreto compartido usando ECC
         const sharedSecret = eccInstance.deriveSharedSecret(eccInstance.privateKey, clientPublicKey);
-
+        
         // Cifrar cada campo con ECC y AES
         encryptedData = {
             username: eccInstance.encryptMessage(sharedSecret, username),
