@@ -96,6 +96,22 @@ class ECC {
 // Instanciar ECC
 const eccInstance = new ECC();
 
+// --- Endpoint para obtener la clave pública asimétrica (ECC) ---
+app.get('/api/public-key-asymmetric', (req, res) => {
+    res.json({
+        publicKey: eccInstance.publicKey
+    });
+});
+
+// --- Endpoint para obtener la clave simétrica (3DES) ---
+app.get('/api/public-key-symmetric', (req, res) => {
+    // Genera una clave aleatoria de 24 bytes para 3DES
+    const symmetricKey = crypto.randomBytes(24).toString('hex');
+    res.json({
+        symmetricKey: symmetricKey
+    });
+});
+
 // --- Endpoint para cifrar los datos ---
 app.post('/api/encrypt-data', (req, res) => {
     const { username, password, email, phone, address, clientPublicKey, encryption } = req.body;
