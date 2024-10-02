@@ -43,27 +43,28 @@ app.post('/procesar', (req, res) => {
       });
       break;
 
-    case 'asimetric':
-      const userData = database[userId];
-      if (!userData) {
-        return res.status(404).json({ error: 'Usuario no encontrado' });
-      }
+   case 'asimetric':
+    // Generar el par de claves pública y privada
+    const { publicKey, privateKey } = asimetricoService.generateKeyPair();
 
-      const { publicKey } = userData;
-
-      resultado = {
+    // Usamos la clave pública para cifrar los datos
+    const resultado = {
         usuario: asimetricoService.encryptMessage(usuario, publicKey),
         correo: asimetricoService.encryptMessage(correo, publicKey),
         password: asimetricoService.encryptMessage(password, publicKey),
         numero: asimetricoService.encryptMessage(numero, publicKey),
         direccion: asimetricoService.encryptMessage(direccion, publicKey)
-      };
+    };
 
-      res.json({
+    // Guardamos la clave privada en el servidor (en un futuro podrías almacenarla en un lugar seguro)
+    // y devolvemos la clave pública al cliente
+    res.json({
         mensaje: 'Datos encriptados con éxito usando cifrado asimétrico (ECC)',
-        resultado
-      });
-      break;
+        resultado,
+        publicKey: publicKey // Devolvemos la clave pública al cliente
+    });
+    break;
+
 
     case 'sha224':
     case 'sha256':
