@@ -115,9 +115,10 @@ app.post('/api/encrypt-data', (req, res) => {
             address: eccInstance.encryptMessage(sharedSecret, address)
         };
     } else if (encryption === 'simetric') {
-        if (clientPublicKey.length !== 24) {
+        if (clientPublicKey.length !== 48) {
             return res.status(400).send('La clave para 3DES debe tener 24 caracteres.');
         }
+        
         // Cifrar cada campo con 3DES
         encryptedData = {
             username: encrypt3DES(username, clientPublicKey),
