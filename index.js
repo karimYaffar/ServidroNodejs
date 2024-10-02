@@ -106,7 +106,7 @@ app.get('/api/public-key-asymmetric', (req, res) => {
 // --- Endpoint para obtener la clave simétrica (3DES) ---
 app.get('/api/public-key-symmetric', (req, res) => {
     // Genera una clave aleatoria de 24 bytes para 3DES
-    const symmetricKey = crypto.randomBytes(24).toString('hex');
+    const symmetricKey = crypto.randomBytes(24).toString('base64');
     res.json({
         symmetricKey: symmetricKey
     });
@@ -131,7 +131,7 @@ app.post('/api/encrypt-data', (req, res) => {
             address: eccInstance.encryptMessage(sharedSecret, address)
         };
     } else if (encryption === 'simetric') {
-        if (clientPublicKey.length !== 48) {
+        if (clientPublicKey.length !== 24) {
             return res.status(400).send('La clave para 3DES debe tener 24 caracteres.');
         }
         
