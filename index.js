@@ -98,7 +98,7 @@ const eccInstance = new ECC();
 
 // --- Endpoint para cifrar los datos ---
 app.post('/api/encrypt-data', (req, res) => {
-    const { username, email, password, phone, address, clientPublicKey, encryption } = req.body;
+    const { username, password, email, phone, address, clientPublicKey, encryption } = req.body;
 
     let encryptedData;
 
