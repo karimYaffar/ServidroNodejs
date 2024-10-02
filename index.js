@@ -133,7 +133,7 @@ app.post('/api/encrypt-data', (req, res) => {
     let encryptedData;
     
 
-    console.log("Antes es de:", clientPublicKey.length);
+    //console.log("Antes es de:", clientPublicKey.length);
 
     if (encryption === 'asimetric') {
         // Derivar secreto compartido usando ECC
