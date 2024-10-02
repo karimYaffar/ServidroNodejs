@@ -1,12 +1,9 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
-const cors = require('cors'); // Agregar CORS
-const CryptoJS = require('crypto-js');
-
-// Importar correctamente el módulo EC de elliptic
+const cors = require('cors');
 const EC = require('elliptic').ec;
-const ec = new EC('secp256k1'); // Instancia correcta de EC
+const ec = new EC('secp256k1');
 
 const app = express();
 
@@ -75,10 +72,27 @@ class ECC {
     }
 
     deriveSharedSecret(clientPublicKey) {
-        const clientKey = ec.keyFromPublic(clientPublicKey, 'hex');
-        const sharedSecret = this.keyPair.derive(clientKey.getPublic());
-        return sharedSecret.toString(16);
+        try {
+            console.log("clientPublicKey dentro de deriveSharedSecret:", clientPublicKey);
+            console.log("Longitud en deriveSharedSecret:", clientPublicKey.length);
+            // Verificar si la clave pública tiene el formato comprimido (66 caracteres) o sin comprimir (130 caracteres)
+            if (clientPublicKey.length !== 66 && clientPublicKey.length !== 130) {
+                throw new Error("La clave pública no tiene la longitud correcta.");
+            }
+
+            // Convertir la clave pública del cliente al formato necesario (comprimido o sin comprimir)
+            const clientKey = ec.keyFromPublic(clientPublicKey, 'hex');
+
+            // Derivar el secreto compartido usando la clave privada del servidor y la clave pública del cliente
+            const sharedSecret = this.keyPair.derive(clientKey.getPublic());
+
+            // Devolver el secreto compartido en formato hexadecimal
+            return sharedSecret.toString(16);
+        } catch (error) {
+            console.error("Error al derivar el secreto compartido:", error);
+        }
     }
+
 
     encryptMessage(sharedSecret, text) {
         const key = crypto.createHash('sha256').update(sharedSecret).digest();
@@ -115,13 +129,17 @@ app.get('/api/public-key-symmetric', (req, res) => {
 // --- Endpoint para cifrar los datos ---
 app.post('/api/encrypt-data', (req, res) => {
     const { username, password, email, phone, address, clientPublicKey, encryption } = req.body;
-    console.log(username, password, email, phone, address, clientPublicKey, encryption );
+
     let encryptedData;
+    
+
+    console.log("Antes es de:", clientPublicKey.length);
 
     if (encryption === 'asimetric') {
         // Derivar secreto compartido usando ECC
-        const sharedSecret = eccInstance.deriveSharedSecret(eccInstance.privateKey, clientPublicKey);
-        
+        const sharedSecret = eccInstance.deriveSharedSecret(clientPublicKey);
+
+
         // Cifrar cada campo con ECC y AES
         encryptedData = {
             username: eccInstance.encryptMessage(sharedSecret, username),
@@ -131,18 +149,20 @@ app.post('/api/encrypt-data', (req, res) => {
             address: eccInstance.encryptMessage(sharedSecret, address)
         };
     } else if (encryption === 'simetric') {
-        clientPublicKey = Buffer.from(clientPublicKey, 'hex');
-        if (clientPublicKey.length !== 24) {
+        let pKey = Buffer.from(clientPublicKey, 'hex');
+
+
+        if (pKey.length !== 24) {
             return res.status(400).send('La clave para 3DES debe tener 24 caracteres.');
         }
-        
+
         // Cifrar cada campo con 3DES
         encryptedData = {
-            username: encrypt3DES(username, clientPublicKey),
-            email: encrypt3DES(email, clientPublicKey),
-            password: encrypt3DES(password, clientPublicKey),
-            phone: encrypt3DES(phone, clientPublicKey),
-            address: encrypt3DES(address, clientPublicKey)
+            username: encrypt3DES(username, pKey),
+            email: encrypt3DES(email, pKey),
+            password: encrypt3DES(password, pKey),
+            phone: encrypt3DES(phone, pKey),
+            address: encrypt3DES(address, pKey)
         };
     } else if (encryption === 'hash224') {
         // Hashear cada campo con SHA-224
