@@ -18,14 +18,14 @@ const generateKeyPair = () => {
 
 // Función para cifrar un mensaje utilizando la clave pública
 const encryptMessage = (message, publicKey) => {
-    // Simulamos un cifrado básico usando la clave pública
+    // Simulamos un cifrado básico usando la clave pública (puedes adaptar esto según tu necesidad)
     const encryptedMessage = Buffer.from(message).toString('base64');
     return encryptedMessage;
 };
 
 // Función para descifrar un mensaje utilizando la clave privada
 const decryptMessage = (encryptedMessage, privateKey) => {
-    // Simulamos un descifrado básico usando la clave privada
+    // Simulamos un descifrado básico usando la clave privada (puedes adaptar esto según tu necesidad)
     const decryptedMessage = Buffer.from(encryptedMessage, 'base64').toString('utf8');
     return decryptedMessage;
 };
