@@ -1,117 +1,207 @@
 const express = require('express');
-const cors = require('cors');  // Importar el middleware de CORS
-const app = express();
 const bodyParser = require('body-parser');
-const asimetricoService = require('./services/Asimetrico_model');
-const simetricoService = require('./services/Simetrico_model');
-const hashService = require('./services/hash_model');
+const crypto = require('crypto');
+const cors = require('cors'); // Agregar CORS
+const { SigningKey, VerifyingKey } = require('ecdsa');
+const CryptoJS = require('crypto-js');
 
-let privateKey;  // Variable para almacenar la clave privada del servidor
+const app = express();
 
-// Habilitar CORS para todas las rutas
-app.use(cors());
+// Habilitar CORS para todas las solicitudes
+app.use(cors()); // Esto permite peticiones desde cualquier origen
 
-// Configuración para manejar JSON y formularios
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 
-// Ruta para generar y devolver la clave pública
-app.get('/generate-keys', (req, res) => {
-    const { publicKey, privateKey: privKey } = asimetricoService.generateKeyPair();
-    privateKey = privKey; // Almacenar la clave privada en el servidor
+// --- Funciones de Hash ---
+const hashSHA224 = (value) => {
+    return crypto.createHash('sha224').update(value).digest('hex');
+};
+
+const hashSHA256 = (value) => {
+    return crypto.createHash('sha256').update(value).digest('hex');
+};
+
+const hashSHA384 = (value) => {
+    return crypto.createHash('sha384').update(value).digest('hex');
+};
+
+const hashSHA512 = (value) => {
+    return crypto.createHash('sha512').update(value).digest('hex');
+};
+
+// --- Función para cifrar con AES-256-CBC (Usado por ECC) ---
+const encryptAES = (text, key) => {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + encrypted;
+};
+
+// --- Función para descifrar con AES-256-CBC ---
+const decryptAES = (encryptedText, key) => {
+    const iv = Buffer.from(encryptedText.slice(0, 32), 'hex'); // los primeros 32 caracteres (16 bytes) son el IV
+    const content = encryptedText.slice(32);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(content, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+};
+
+// --- Funciones para cifrado simétrico 3DES ---
+const encrypt3DES = (text, key) => {
+    const cipher = crypto.createCipheriv('des-ede3', Buffer.from(key), null);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+};
+
+const decrypt3DES = (encryptedText, key) => {
+    const decipher = crypto.createDecipheriv('des-ede3', Buffer.from(key), null);
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+};
+
+// --- Clase para ECC (Asimétrico) ---
+class ECC {
+    constructor() {
+        // Generar la clave privada y pública del servidor
+        this.privateKey = SigningKey.generate();
+        this.publicKey = this.privateKey.verifyingKey;
+    }
+
+    deriveSharedSecret(serverPrivateKey, clientPublicKey) {
+        const clientPublicKeyBytes = Buffer.from(clientPublicKey, 'hex');
+        const clientPubKey = VerifyingKey.from_string(clientPublicKeyBytes);
+        
+        const sharedSecret = serverPrivateKey.privkey.secret_multiplier * clientPubKey.pubkey.point;
+        return sharedSecret.x().to_bytes(32);
+    }
+
+    encryptMessage(sharedSecret, text) {
+        const key = crypto.createHash('sha256').update(sharedSecret).digest();
+        const encryptedText = encryptAES(text, key);
+        return encryptedText;
+    }
+
+    decryptMessage(sharedSecret, encryptedText) {
+        const key = crypto.createHash('sha256').update(sharedSecret).digest();
+        const decryptedText = decryptAES(encryptedText, key);
+        return decryptedText;
+    }
+}
+
+// Instanciar ECC
+const eccInstance = new ECC();
+
+// --- Endpoint para cifrar los datos ---
+app.post('/api/encrypt-data', (req, res) => {
+    const { username, email, password, phone, address, clientPublicKey, encryption } = req.body;
+
+    let encryptedData;
+
+    if (encryption === 'asimetric') {
+        // Derivar secreto compartido usando ECC
+        const sharedSecret = eccInstance.deriveSharedSecret(eccInstance.privateKey, clientPublicKey);
+
+        // Cifrar cada campo con ECC y AES
+        encryptedData = {
+            username: eccInstance.encryptMessage(sharedSecret, username),
+            email: eccInstance.encryptMessage(sharedSecret, email),
+            password: eccInstance.encryptMessage(sharedSecret, password),
+            phone: eccInstance.encryptMessage(sharedSecret, phone),
+            address: eccInstance.encryptMessage(sharedSecret, address)
+        };
+    } else if (encryption === 'simetric') {
+        if (clientPublicKey.length !== 24) {
+            return res.status(400).send('La clave para 3DES debe tener 24 caracteres.');
+        }
+        // Cifrar cada campo con 3DES
+        encryptedData = {
+            username: encrypt3DES(username, clientPublicKey),
+            email: encrypt3DES(email, clientPublicKey),
+            password: encrypt3DES(password, clientPublicKey),
+            phone: encrypt3DES(phone, clientPublicKey),
+            address: encrypt3DES(address, clientPublicKey)
+        };
+    } else {
+        return res.status(400).send('Método de cifrado no soportado.');
+    }
 
     res.json({
-        publicKey: publicKey,  // Devolver la clave pública al cliente
-        mensaje: "Clave pública generada con éxito."
+        encryption: encryption,
+        encryptedData: encryptedData
     });
 });
 
-// Ruta principal para recibir los datos y decidir el tipo de cifrado
-app.post('/procesar', (req, res) => {
-    const { usuario, password, correo, numero, direccion, option, userKey } = req.body;
+// --- Endpoint para descifrar los datos ---
+app.post('/api/decrypt-data', (req, res) => {
+    const { encryptedData, clientPublicKey, symmetricKey, encryption } = req.body;
 
-    let resultado;
+    let decryptedData;
 
-    switch (option) {
-        case 'simetric':
-            if (userKey.length !== 16) {
-                return res.status(400).json({ error: 'La clave debe tener 16 caracteres.' });
-            }
+    if (encryption === 'ECC') {
+        // Derivar secreto compartido usando ECC
+        const sharedSecret = eccInstance.deriveSharedSecret(eccInstance.privateKey, clientPublicKey);
 
-            resultado = {
-                usuario: simetricoService.encrypt(usuario, userKey),
-                correo: simetricoService.encrypt(correo, userKey),
-                password: simetricoService.encrypt(password, userKey),
-                numero: simetricoService.encrypt(numero, userKey),
-                direccion: simetricoService.encrypt(direccion, userKey)
-            };
-
-            res.json({
-                mensaje: 'Datos encriptados con éxito usando cifrado simétrico',
-                resultado
-            });
-            break;
-
-        case 'asimetric':
-            // Verificamos si la clave privada está generada
-            if (!privateKey) {
-                return res.status(500).json({ error: 'La clave privada no está disponible. Genera primero las claves.' });
-            }
-
-            // El cliente envía los datos cifrados con la clave pública que recibió antes
-            const encryptedData = {
-                usuario: req.body.usuario,
-                correo: req.body.correo,
-                password: req.body.password,
-                numero: req.body.numero,
-                direccion: req.body.direccion
-            };
-
-            // Descifrar los datos con la clave privada del servidor
-            const resultado = {
-                usuario: asimetricoService.decryptMessage(encryptedData.usuario, privateKey),
-                correo: asimetricoService.decryptMessage(encryptedData.correo, privateKey),
-                password: asimetricoService.decryptMessage(encryptedData.password, privateKey),
-                numero: asimetricoService.decryptMessage(encryptedData.numero, privateKey),
-                direccion: asimetricoService.decryptMessage(encryptedData.direccion, privateKey)
-            };
-
-            res.json({
-                mensaje: 'Datos descifrados con éxito usando cifrado asimétrico (ECC)',
-                resultado
-            });
-            break;
-
-        case 'sha224':
-        case 'sha256':
-        case 'sha384':
-        case 'sha512':
-            resultado = {
-                usuario: hashService.hash(usuario, option),
-                correo: hashService.hash(correo, option),
-                password: hashService.hash(password, option),
-                numero: hashService.hash(numero, option),
-                direccion: hashService.hash(direccion, option)
-            };
-
-            res.json({
-                mensaje: `Hash generado con éxito usando ${option.toUpperCase()}`,
-                resultado
-            });
-            break;
-
-        default:
-            res.status(400).json({ error: 'Tipo de cifrado no soportado' });
+        // Descifrar cada campo con ECC y AES
+        decryptedData = {
+            username: eccInstance.decryptMessage(sharedSecret, encryptedData.username),
+            email: eccInstance.decryptMessage(sharedSecret, encryptedData.email),
+            password: eccInstance.decryptMessage(sharedSecret, encryptedData.password),
+            phone: eccInstance.decryptMessage(sharedSecret, encryptedData.phone),
+            address: eccInstance.decryptMessage(sharedSecret, encryptedData.address)
+        };
+    } else if (encryption === '3DES') {
+        if (symmetricKey.length !== 24) {
+            return res.status(400).send('La clave para 3DES debe tener 24 caracteres.');
+        }
+        // Descifrar cada campo con 3DES
+        decryptedData = {
+            username: decrypt3DES(encryptedData.username, symmetricKey),
+            email: decrypt3DES(encryptedData.email, symmetricKey),
+            password: decrypt3DES(encryptedData.password, symmetricKey),
+            phone: decrypt3DES(encryptedData.phone, symmetricKey),
+            address: decrypt3DES(encryptedData.address, symmetricKey)
+        };
+    } else {
+        return res.status(400).send('Método de descifrado no soportado.');
     }
+
+    res.json({
+        decryptedData: decryptedData
+    });
 });
 
-// Obtener el puerto del entorno o usar el puerto 3000 por defecto
+// --- Endpoint para realizar hash ---
+app.post('/api/hash-data', (req, res) => {
+    const { text, algorithm } = req.body;
+
+    let hash;
+    switch (algorithm) {
+        case 'sha224':
+            hash = hashSHA224(text);
+            break;
+        case 'sha256':
+            hash = hashSHA256(text);
+            break;
+        case 'sha384':
+            hash = hashSHA384(text);
+            break;
+        case 'sha512':
+            hash = hashSHA512(text);
+            break;
+        default:
+            return res.status(400).send('Algoritmo de hash no soportado.');
+    }
+
+    res.send({ algorithm, hash });
+});
+
+// Puerto de la aplicación
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(Servidor corriendo en el puerto ${PORT});
 });
-
-module.exports = app;
-
 
