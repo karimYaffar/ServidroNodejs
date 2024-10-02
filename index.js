@@ -4,8 +4,9 @@ const crypto = require('crypto');
 const cors = require('cors'); // Agregar CORS
 const CryptoJS = require('crypto-js');
 
-const elliptic = require('elliptic');
-const EC = new elliptic.ec('secp256k1'); // Correcto: Usar elliptic en lugar de ecdsa
+// Importar correctamente el módulo EC de elliptic
+const EC = require('elliptic').ec;
+const ec = new EC('secp256k1'); // Instancia correcta de EC
 
 const app = express();
 
@@ -68,15 +69,13 @@ const decrypt3DES = (encryptedText, key) => {
 // --- Clase para ECC (Asimétrico) ---
 class ECC {
     constructor() {
-        // Generar la clave privada y pública del servidor
-        this.ec = new EC('secp256k1');
-        this.keyPair = this.ec.genKeyPair();
+        this.keyPair = ec.genKeyPair();
         this.publicKey = this.keyPair.getPublic('hex');
         this.privateKey = this.keyPair.getPrivate('hex');
     }
 
     deriveSharedSecret(clientPublicKey) {
-        const clientKey = this.ec.keyFromPublic(clientPublicKey, 'hex');
+        const clientKey = ec.keyFromPublic(clientPublicKey, 'hex');
         const sharedSecret = this.keyPair.derive(clientKey.getPublic());
         return sharedSecret.toString(16);
     }
