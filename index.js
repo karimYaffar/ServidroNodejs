@@ -5,6 +5,9 @@ const cors = require('cors'); // Agregar CORS
 const { SigningKey, VerifyingKey } = require('ecdsa');
 const CryptoJS = require('crypto-js');
 
+const elliptic = require('elliptic');
+const EC = new elliptic.ec('secp256k1');
+
 const app = express();
 
 // Habilitar CORS para todas las solicitudes
@@ -67,16 +70,16 @@ const decrypt3DES = (encryptedText, key) => {
 class ECC {
     constructor() {
         // Generar la clave privada y pública del servidor
-        this.privateKey = SigningKey.generate();
-        this.publicKey = this.privateKey.verifyingKey;
+        this.ec = new EC('secp256k1');
+        this.keyPair = this.ec.genKeyPair();
+        this.publicKey = this.keyPair.getPublic('hex');
+        this.privateKey = this.keyPair.getPrivate('hex');
     }
 
-    deriveSharedSecret(serverPrivateKey, clientPublicKey) {
-        const clientPublicKeyBytes = Buffer.from(clientPublicKey, 'hex');
-        const clientPubKey = VerifyingKey.from_string(clientPublicKeyBytes);
-        
-        const sharedSecret = serverPrivateKey.privkey.secret_multiplier * clientPubKey.pubkey.point;
-        return sharedSecret.x().to_bytes(32);
+    deriveSharedSecret(clientPublicKey) {
+        const clientKey = this.ec.keyFromPublic(clientPublicKey, 'hex');
+        const sharedSecret = this.keyPair.derive(clientKey.getPublic());
+        return sharedSecret.toString(16);
     }
 
     encryptMessage(sharedSecret, text) {
